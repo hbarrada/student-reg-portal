@@ -78,14 +78,14 @@ DECLARE
     deleted_position INT;
 BEGIN
     IF OLD.status = 'registered' THEN
-        -- First remove the registration
+        -- Remove registration
         DELETE FROM Registered 
         WHERE student = OLD.student 
-        AND course = OLD.course;
+          AND course  = OLD.course;
 
-        -- Only handle waiting list if this is a limited course
+        -- Only handle waiting list for limited courses
         IF EXISTS (SELECT 1 FROM LimitedCourses WHERE code = OLD.course) THEN
-            -- Get course capacity and current count
+            -- Capacity / current count
             SELECT capacity INTO course_capacity
             FROM LimitedCourses
             WHERE code = OLD.course;
@@ -94,63 +94,102 @@ BEGIN
             FROM Registered
             WHERE course = OLD.course;
 
-            -- If we're under capacity, try to register someone from the waiting list
+            -- If under capacity, try to promote someone from waiting list
             IF current_registered < course_capacity THEN
-                -- Get the first person in the waiting list (by position)
-                SELECT W.student INTO first_waiting_student
-                FROM WaitingList W
-                WHERE W.course = OLD.course
-                ORDER BY W.position
-                LIMIT 1;
+                -- Loop until we either register an eligible student or the list is empty
+                LOOP
+                    -- Get the first person in the waiting list (by position)
+                    SELECT W.student INTO first_waiting_student
+                    FROM WaitingList W
+                    WHERE W.course = OLD.course
+                    ORDER BY W.position
+                    LIMIT 1;
 
-                IF first_waiting_student IS NOT NULL THEN
-                    -- Store their position for later updates
+                    -- Waiting list empty -> nothing to do
+                    IF first_waiting_student IS NULL THEN
+                        EXIT;
+                    END IF;
+
+                    -- Remember their position to compact later
                     SELECT position INTO deleted_position
                     FROM WaitingList
                     WHERE student = first_waiting_student 
-                    AND course = OLD.course;
+                      AND course  = OLD.course;
 
-                    -- Remove them from waiting list
-                    DELETE FROM WaitingList 
-                    WHERE student = first_waiting_student 
-                    AND course = OLD.course;
+                    -- Check prerequisites for the course
+                    IF EXISTS (
+                        SELECT 1
+                        FROM Prerequisites p
+                        WHERE p.course = OLD.course
+                          AND NOT EXISTS (
+                              SELECT 1
+                              FROM Taken t
+                              WHERE t.student = first_waiting_student
+                                AND t.course  = p.prerequisite
+                                AND t.grade IN ('3','4','5')
+                          )
+                    ) THEN
+                        -- Not eligible: remove from waiting list and compact; continue to next
+                        DELETE FROM WaitingList 
+                        WHERE student = first_waiting_student 
+                          AND course  = OLD.course;
 
-                    -- Add them as registered
-                    INSERT INTO Registered (student, course)
-                    VALUES (first_waiting_student, OLD.course);
+                        UPDATE WaitingList
+                           SET position = position - 1
+                         WHERE course   = OLD.course
+                           AND position > deleted_position;
 
-                    -- Update positions for remaining students in waiting list
-                    UPDATE WaitingList
-                    SET position = position - 1
-                    WHERE course = OLD.course
-                    AND position > deleted_position;
-                END IF;
+                        -- Continue the loop to check the next waiting student
+                        CONTINUE;
+                    ELSE
+                        -- Eligible: remove from waiting list, compact, then register
+                        DELETE FROM WaitingList 
+                        WHERE student = first_waiting_student 
+                          AND course  = OLD.course;
+
+                        UPDATE WaitingList
+                           SET position = position - 1
+                         WHERE course   = OLD.course
+                           AND position > deleted_position;
+
+                        -- Guard against race overfill
+                        SELECT COUNT(*) INTO current_registered
+                        FROM Registered
+                        WHERE course = OLD.course;
+
+                        IF current_registered < course_capacity THEN
+                            INSERT INTO Registered (student, course)
+                            VALUES (first_waiting_student, OLD.course);
+                        END IF;
+
+                        -- Done after registering one student
+                        EXIT;
+                    END IF;
+                END LOOP;
             END IF;
         END IF;
 
     ELSIF OLD.status = 'waiting' THEN
-        -- Handle removal from waiting list
-        -- Get position before deleting
+        -- Remove from waiting list and compact positions
         SELECT position INTO deleted_position
         FROM WaitingList
         WHERE student = OLD.student 
-        AND course = OLD.course;
+          AND course  = OLD.course;
 
-        -- Remove from waiting list
         DELETE FROM WaitingList 
         WHERE student = OLD.student 
-        AND course = OLD.course;
+          AND course  = OLD.course;
 
-        -- Update positions for remaining students
         UPDATE WaitingList
-        SET position = position - 1
-        WHERE course = OLD.course
-        AND position > deleted_position;
+           SET position = position - 1
+         WHERE course   = OLD.course
+           AND position > deleted_position;
     END IF;
 
     RETURN OLD;
 END;
 $$ LANGUAGE plpgsql;
+
 
 -- Set up all the triggers
 DROP TRIGGER IF EXISTS registration_trigger ON Registrations;

@@ -28,65 +28,8 @@ GRANT ALL ON SCHEMA public TO CURRENT_USER;
 SET client_min_messages TO NOTICE; -- More talk
 \set QUIET false
 
-
--- \ir is for include relative,
--- it will run files in the same directory as this file
--- Note that these are not SQL statements but rather Postgres commands
--- (no terminating semicolon).
-
--- Part 1
 \ir tables.sql
 \ir inserts.sql
 \ir views.sql
 \ir triggers.sql
 \ir tests.sql
-
-
-
--- Life-hack: When working on a new view you can write it as a query
--- here (without creating a view) and when it works just add
--- CREATE VIEW and put it in views.sql
-
-
--- Tests various queries from the assignment,
--- uncomment these as you make progress
-
--- SELECT idnr, name, login, program, branch
--- FROM BasicInformation
--- ORDER BY idnr;
-
--- SELECT student, course, courseName, grade, credits
--- FROM FinishedCourses
--- ORDER BY (student, course);
-
--- SELECT student, course, status
--- FROM Registrations
--- ORDER BY (status, course, student);
-
--- SELECT student, totalCredits, mandatoryLeft, mathCredits, seminarCourses,
---        qualified
--- FROM PathToGraduation
--- ORDER BY student;
-
-
--- Helper views for PathToGraduation (optional)
-
--- SELECT student, course, credits
--- FROM PassedCourses
--- ORDER BY (student, course);
-
--- SELECT student, course
--- FROM UnreadMandatory
--- ORDER BY (student, course);
-
--- SELECT student, course, credits
--- FROM RecommendedCourses
--- ORDER BY (student, course);
-
-
--- Part 3, once it is ready
--- \ir triggers.sql
--- To run the file "tests.sql", you might want to let psql continue
--- even if there are errors 
--- \set ON_ERROR_STOP OFF
--- \ir tests.sql
