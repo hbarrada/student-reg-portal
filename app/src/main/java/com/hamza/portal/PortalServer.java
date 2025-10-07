@@ -8,7 +8,9 @@ import com.sun.net.httpserver.HttpServer;
 
 public class PortalServer {
     
-    public static final int PORT = 80;
+    public static final int PORT = Integer.parseInt(
+        System.getenv().getOrDefault("SERVER_PORT", "8080")
+    );
 
     public static void main(String[] args) throws Exception {
         PortalServer s = new PortalServer();

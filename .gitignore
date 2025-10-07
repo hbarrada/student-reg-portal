@@ -1,0 +1,32 @@
+# IDEs
+.idea/
+*.iml
+.vscode/
+
+# Java builds
+target/
+out/
+build/
+*.class
+*.jar
+*.war
+*.ear
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# Logs & temp
+*.log
+tmp/
+*.tmp
+
+# Env & secrets
+.env
+.env.local
+*.key
+*.keystore
+
+# Data/exports
+exports/
+
